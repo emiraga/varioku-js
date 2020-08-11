@@ -29,6 +29,15 @@ function get_next_cell(row, col) {
     return [row, col + 1];
 }
 
+const S = 9;
+
+function minSumInNcells(n) {
+    return n * (n + 1)/2;
+}
+
+function maxSumInNcells(n) {
+    return (2 * S + 1 - n) * n / 2;
+}
 
 class Cell {
     constructor(name) {
@@ -87,17 +96,76 @@ class UniquenessConstraint {
     }
 }
 
+class ExactSumUniquenessConstraint {
+    constructor(name, sum) {
+        this.name = name;
+        this.sum = sum;
+        this.empty = 0;
+        this.available = bag_all();
+        this.cells = [];
+    }
+    _attach_cell(cell) {
+        this.cells.push(cell);
+        this.empty++;
+        // TODO: verify that cell is not set
+    }
+    _notify_value_set(cell, val) {
+        this.available = bag_remove(this.available, val);
+        this.sum -= val;
+        this.empty--;
+    }
+    _notify_value_unset(cell, val) {
+        this.available = bag_add(this.available, val);
+        this.sum += val;
+        this.empty++;
+    }
+    get_available_for_cell(_cell) {
+        // TODO: assert empty >= 1
+        var result = this.available;
+        var upper_bound = this.sum - minSumInNcells(this.empty - 1);
+        var lower_bound = this.sum - maxSumInNcells(this.empty - 1);
+        for (var i=1; i < lower_bound; i++) {
+            result = bag_remove(result, i);
+        }
+        for (var i = upper_bound+1; i <= S; i++) {
+            result = bag_remove(result, i);
+        }
+        return result;
+    }
+}
+
+
 let board = [
-    [5,3,0,0,7,0,0,0,0],
-    [6,0,0,1,9,5,0,0,0],
-    [0,9,8,0,0,0,0,6,0],
-    [8,0,0,0,6,0,0,0,3],
-    [4,0,0,8,0,3,0,0,1],
-    [7,0,0,0,2,0,0,0,6],
-    [0,6,0,0,0,0,2,8,0],
-    [0,0,0,4,1,9,0,0,5],
-    [0,0,0,0,8,0,0,7,9],
+    [0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0],
 ];
+
+let killer_mask = [
+    'aaffqqtvv',
+    'aaaggqtww',
+    'bbhhpqttw',
+    'bcihprtuw',
+    'cciooruuu',
+    'dcijmrsux',
+    'ddjjmnssx',
+    'eeellnsxx',
+    'eekknnsyy',
+];
+
+let killer_capacity = {
+    'a': 28, 'b': 16, 'c': 25, 'd': 13, 'e': 22, 'f': 3, 'g': 12,
+    'h': 16, 'i': 10, 'j': 18, 'k': 13, 'l': 4, 'm': 15, 'n': 22,
+    'o': 10, 'p': 5, 'q': 26, 'r': 12, 's': 17, 't': 29, 'u': 22,
+    'v': 13, 'w': 15, 'x': 28, 'y': 11,
+};
+
 
 function main() {
     let row_constraints = [];
@@ -112,6 +180,12 @@ function main() {
     for (var box=0;box<9;box++) {
         box_constraints.push(new UniquenessConstraint('b'+box));
     }
+    let killer_constraints = {};
+    for (var name of Object.keys(killer_capacity)) {
+        killer_constraints[name] = new ExactSumUniquenessConstraint(
+            'k_'+name, killer_capacity[name],
+        );
+    }
     let cells = new Array(81);
     for (var row=0;row<9;row++) {
         for (var col=0;col<9;col++) {
@@ -121,6 +195,11 @@ function main() {
             cell.add_constraint(col_constraints[col]);
             let box = get_box_number(row, col);
             cell.add_constraint(box_constraints[box]);
+            var killer_name = killer_mask[row][col];
+            if (killer_name != '.') {
+                cell.add_constraint(killer_constraints[killer_name]);
+            }
+
             cells[i] = cell;
         }
     }
@@ -132,6 +211,7 @@ function main() {
             }
         }
     }
+
     function show_options(bag) {
         var out = '['
         for (var num=1; num<=9; num++) {
@@ -151,11 +231,17 @@ function main() {
     }
 
     let recursion_count = 0;
+    let highest_depth = 0;
     function backtracking(row, col, depth) {
         recursion_count++;
         if (row == 9) {
             show_board();
             return;
+        }
+        if (depth > highest_depth) {
+            highest_depth = depth;
+            show_board();
+            console.log('depth', depth);
         }
         let [next_row, next_col] = get_next_cell(row, col);
 
@@ -174,6 +260,7 @@ function main() {
             }
         }
     }
+
 
     backtracking(0, 0, 0);
     console.log('Recursion count', recursion_count);
