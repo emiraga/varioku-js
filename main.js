@@ -22,13 +22,6 @@ function bag_items_in_both(bag1, bag2) {
     return bag1 & bag2;
 }
 
-function get_next_cell(row, col) {
-    if (col === 8) {
-        return [row + 1, 0];
-    }
-    return [row, col + 1];
-}
-
 const S = 9;
 
 function minSumInNcells(n) {
@@ -68,6 +61,16 @@ class Cell {
             options = bag_items_in_both(options, c.get_available_for_cell(this));
         }
         return options;
+    }
+    get_count_of_options() {
+        var options = this.get_available_options();
+        var result = 0;
+        for (var num=1; num<=S; num++) {
+            if (bag_check_exists(options, num)) {
+                result++;
+            }
+        }
+        return result;
     }
     debug() {
         console.log('===cell ', this.name);
@@ -134,6 +137,106 @@ class ExactSumUniquenessConstraint {
     }
 }
 
+function show_board(cells) {
+    console.log("======");
+    for (var row=0; row<9; row++) {
+        console.log(
+            cells.slice(row*9, row*9 + 9).map(cell => cell.value || '.').join(' ')
+        );
+    }
+}
+
+function show_options(bag) {
+    var out = '['
+    for (var num=1; num<=9; num++) {
+        if (bag_check_exists(bag, num)) {
+            out += num.toString();
+        }
+    }
+    return out + ']';
+}
+
+function sequential_solver(cells) {
+    function get_next_cell(row, col) {
+        if (col === 8) {
+            return [row + 1, 0];
+        }
+        return [row, col + 1];
+    }
+
+    let recursion_count = 0;
+    let highest_depth = 0;
+    function backtracking(row, col, depth) {
+        recursion_count++;
+        if (row == 9) {
+            show_board(cells);
+            return;
+        }
+        if (depth > highest_depth) {
+            highest_depth = depth;
+            show_board(cells);
+            console.log('depth', depth);
+        }
+        let [next_row, next_col] = get_next_cell(row, col);
+
+        var cell = cells[row * 9 + col];
+        if (cell.value !== null) {
+            backtracking(next_row, next_col, depth + 1);
+        } else {
+            var options = cell.get_available_options();
+
+            for (let num=1; num<=9; num++) {
+                if (bag_check_exists(options, num)) {
+                    cell.set_value(num);
+                    backtracking(next_row, next_col, depth + 1);
+                    cell.unset_value(num);
+                }
+            }
+        }
+    }
+
+    backtracking(0, 0, 0);
+    console.log('Recursion count', recursion_count);
+}
+
+function min_options_per_cell_solver(cells) {
+    let recursion_count = 0;
+    let highest_depth = 0;
+    function backtracking(depth) {
+        recursion_count++;
+        var pending_cells = cells.filter(cell => cell.value == null);
+        if (pending_cells.length === 0) {
+            show_board(cells);
+            return;
+        }
+        if (depth > highest_depth) {
+            highest_depth = depth;
+            show_board(cells);
+            console.log('depth', depth);
+        }
+        var cell = pending_cells[0];
+        var min_options_count = cell.get_count_of_options();
+
+        for (var i=1; i < pending_cells.length; i++) {
+            var count = pending_cells[i].get_count_of_options();
+            if (count < min_options_count) {
+                min_options_count = count;
+                cell = pending_cells[i];
+            }
+        }
+
+        var options = cell.get_available_options();
+        for (let num=1; num<=S; num++) {
+            if (bag_check_exists(options, num)) {
+                cell.set_value(num);
+                backtracking(depth + 1);
+                cell.unset_value(num);
+            }
+        }
+    }
+    backtracking(0);
+    console.log('Recursion count', recursion_count);
+}
 
 let board = [
     [0,0,0,0,0,0,0,0,0],
@@ -212,58 +315,8 @@ function main() {
         }
     }
 
-    function show_options(bag) {
-        var out = '['
-        for (var num=1; num<=9; num++) {
-            if (bag_check_exists(bag, num)) {
-                out += num.toString();
-            }
-        }
-        return out + ']';
-    }
-    function show_board() {
-        console.log("======");
-        for (var row=0; row<9; row++) {
-            console.log(
-                cells.slice(row*9, row*9 + 9).map(cell => cell.value || '.').join(' ')
-            );
-        }
-    }
-
-    let recursion_count = 0;
-    let highest_depth = 0;
-    function backtracking(row, col, depth) {
-        recursion_count++;
-        if (row == 9) {
-            show_board();
-            return;
-        }
-        if (depth > highest_depth) {
-            highest_depth = depth;
-            show_board();
-            console.log('depth', depth);
-        }
-        let [next_row, next_col] = get_next_cell(row, col);
-
-        var cell = cells[row * 9 + col];
-        if (cell.value !== null) {
-            backtracking(next_row, next_col, depth + 1);
-        } else {
-            var options = cell.get_available_options();
-
-            for (let num=1; num<=9; num++) {
-                if (bag_check_exists(options, num)) {
-                    cell.set_value(num);
-                    backtracking(next_row, next_col, depth + 1);
-                    cell.unset_value(num);
-                }
-            }
-        }
-    }
-
-
-    backtracking(0, 0, 0);
-    console.log('Recursion count', recursion_count);
+    // sequential_solver(cells);
+    min_options_per_cell_solver(cells);
 }
 
 main();
